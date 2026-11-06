@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>PU原料行情看板</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,-apple-system,sans-serif}
+body{background:#f4f6f8;padding:12px;padding-bottom:110px}
+.card{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 4px #00000012}
+.title{font-size:16px;font-weight:600;margin-bottom:10px;color:#222;border-left:4px solid #2b7cdd;padding-left:8px}
+.row{display:flex;align-items:center;justify-content:space-between;margin:8px 0;gap:8px}
+.label{font-size:14px;color:#444;flex:1}
+input{border:1px solid #ddd;border-radius:6px;padding:8px 6px;width:105px;font-size:14px;text-align:right}
+.desc{font-size:12px;color:#777;margin-top:4px}
+.tip{background:#e8f2ff;color:#2b7cdd;padding:10px;border-radius:8px;font-size:13px;margin-bottom:14px}
+.refresh-info{background:#fffbeb;color:#b45309;padding:8px;border-radius:8px;font-size:13px;margin-bottom:12px}
+.save-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;padding:10px 14px;box-shadow:0 -2px 6px #00000015}
+button{padding:10px 8px;border:none;border-radius:8px;background:#2b7cdd;color:#fff;font-size:14px;margin:2px}
+.btn-warning{background:#f59e0b}
+.btn-group{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.chart-wrap{width:100%;height:260px;margin-top:8px}
+canvas{width:100% !important;height:100% !important}
+.source-tag{font-size:11px;color:#888;margin-left:4px}
+</style>
+</head>
+<body>
+<div class="tip">📌 PU发泡行情看板｜5分钟缓存</div>
+<div class="refresh-info">上次行情更新：<span id="lastRefresh">未刷新</span></div>
+<div class="card">
+  <div class="title">🔄 行情刷新控制</div>
+  <div class="btn-group">
+    <button onclick="fetchAllAuto()">🌐 一键刷新</button>
+    <button class="btn-warning" onclick="toggleAutoTimer()" id="timerBtn">开启6分钟自动刷新</button>
+  </div>
+  <div class="desc">⚠️新浪源变动会抓取失效；现货价格手动录入</div>
+</div>
+<div class="card">
+  <div class="title">🛢️ 原油基准</div>
+  <div class="row"><span class="label">布伦特 Brent</span><input id="brent" placeholder="等待加载"></div>
+  <div class="row"><span class="label">WTI美原油</span><input id="wti" placeholder="等待加载"></div>
+  <div class="row"><span class="label">迪拜/阿曼原油</span><input id="dubai" placeholder="手动填写"></div>
+  <div class="row"><span class="label">INE上海SC原油</span><input id="sc" placeholder="手动填写"></div>
+</div>
+<div class="card">
+  <div class="title">⚗️ 石脑油 & 裂解价差</div>
+  <div class="row"><span class="label">东北亚CFR石脑油</span><input id="naphtha" placeholder="输入价格"></div>
+  <div class="row"><span class="label">石脑油裂解价差</span><input id="crack" placeholder="输入价差"></div>
+  <div class="desc">价差高：炼厂开工积极；倒挂容易缺货涨价</div>
+</div>
+<div class="card">
+  <div class="title">🧪 PU核心原料</div>
+  <div class="row"><span class="label">PO 环氧丙烷</span><input id="po" placeholder="输入价格"></div>
+  <div class="row"><span class="label">聚合MDI</span><input id="mdi" placeholder="输入价格"></div>
+  <div class="row"><span class="label">TDI</span><input id="tdi" placeholder="输入价格"></div>
+  <div class="row"><span class="label">PPG聚醚</span><input id="ppg" placeholder="输入价格"></div>
+  <div class="row"><span class="label">苯/甲苯</span><input id="benzene" placeholder="输入价格"></div>
+</div>
+<div class="card">
+  <div class="title">💱 汇率 & 宏观</div>
+  <div class="row"><span class="label">USD/CNY</span><input id="usdcny" placeholder="等待加载"></div>
+  <div class="row"><span class="label">DXY美元指数</span><input id="dxy" placeholder="手动填写"></div>
+  <div class="row"><span class="label">VLCC运价</span><input id="freight" placeholder="输入运价"></div>
+</div>
+<div class="card">
+  <div class="title">⚠️ 能源&金属</div>
+  <div class="row"><span class="label">TTF天然气</span><input id="ttf" placeholder="手动填写"></div>
+  <div class="row"><span class="label">伦敦金</span><input id="gold" placeholder="等待加载"></div>
+  <div class="row"><span class="label">LME伦铜</span><input id="lmeCu" placeholder="等待加载"></div>
+</div>
+<div class="card">
+  <div class="title">📊 下游景气</div>
+  <div class="row"><span class="label">制造业PMI</span><input id="pmi" placeholder="输入数值"></div>
+  <div class="row"><span class="label">财新PMI</span><input id="caixin" placeholder="输入数值"></div>
+  <div class="row"><span class="label">汽车产销</span><input id="auto" placeholder="记录"></div>
+  <div class="row"><span class="label">鞋材家具出口</span><input id="export" placeholder="记录"></div>
+</div>
+<div class="card">
+  <div class="title">📝 备注</div>
+  <input style="width:100%" id="note" placeholder="检修、订单、货源情况">
+</div>
+<div class="card">
+  <div class="title">📈 历史曲线：PO、MDI、布伦特</div>
+  <div class="chart-wrap">
+    <canvas id="priceChart"></canvas>
+  </div>
+  <div class="btn-group">
+    <button onclick="renderChart()">🔁 刷新图表</button>
+    <button onclick="clearHistory()">🗑️ 清空历史</button>
+  </div>
+</div>
+<div class="save-bar">
+<button onclick="saveData()">💾 保存行情记录</button>
+</div>
+<script>
+const WORKER_URL = "https://pu-board.fjghayv.workers.dev/";
+let chart;
+let autoTimer = null;
+const AUTO_INTERVAL = 6 * 60 * 1000;
+function setLastTime(text){
+  document.getElementById('lastRefresh').innerText = text;
+}
+function loadData(){
+  const last = JSON.parse(localStorage.getItem('puLast')||'{}');
+  document.getElementById('brent').value=last.brent||'';
+  document.getElementById('wti').value=last.wti||'';
+  document.getElementById('dubai').value=last.dubai||'';
+  document.getElementById('sc').value=last.sc||'';
+  document.getElementById('naphtha').value=last.naphtha||'';
+  document.getElementById('crack').value=last.crack||'';
+  document.getElementById('po').value=last.po||'';
+  document.getElementById('mdi').value=last.mdi||'';
+  document.getElementById('tdi').value=last.tdi||'';
+  document.getElementById('ppg').value=last.ppg||'';
+  document.getElementById('benzene').value=last.benzene||'';
+  document.getElementById('usdcny').value=last.usdcny||'';
+  document.getElementById('dxy').value=last.dxy||'';
+  document.getElementById('freight').value=last.freight||'';
+  document.getElementById('ttf').value=last.ttf||'';
+  document.getElementById('gold').value=last.gold||'';
+  document.getElementById('lmeCu').value=last.lmeCu||'';
+  document.getElementById('pmi').value=last.pmi||'';
+  document.getElementById('caixin').value=last.caixin||'';
+  document.getElementById('auto').value=last.auto||'';
+  document.getElementById('export').value=last.export||'';
+  document.getElementById('note').value=last.note||'';
+}
+function saveData(){
+  const rec = {
+    time:new Date().toLocaleDateString(),
+    brent:Number(document.getElementById('brent').value)||null,
+    wti:Number(document.getElementById('wti').value)||null,
+    dubai:Number(document.getElementById('dubai').value)||null,
+    sc:Number(document.getElementById('sc').value)||null,
+    naphtha:Number(document.getElementById('naphtha').value)||null,
+    crack:Number(document.getElementById('crack').value)||null,
+    po:Number(document.getElementById('po').value)||null,
+    mdi:Number(document.getElementById('mdi').value)||null,
+    tdi:Number(document.getElementById('tdi').value)||null,
+    ppg:Number(document.getElementById('ppg').value)||null,
+    benzene:Number(document.getElementById('benzene').value)||null,
+    usdcny:Number(document.getElementById('usdcny').value)||null,
+    dxy:Number(document.getElementById('dxy').value)||null,
+    freight:document.getElementById('freight').value,
+    ttf:Number(document.getElementById('ttf').value)||null,
+    gold:Number(document.getElementById('gold').value)||null,
+    lmeCu:Number(document.getElementById('lmeCu').value)||null,
+    pmi:Number(document.getElementById('pmi').value)||null,
+    caixin:Number(document.getElementById('caixin').value)||null,
+    auto:document.getElementById('auto').value,
+    export:document.getElementById('export').value,
+    note:document.getElementById('note').value
+  }
+  localStorage.setItem('puLast', JSON.parse(JSON.stringify(rec)));
+  let history = JSON.parse(localStorage.getItem('puHistory')||'[]');
+  const sameDayIdx = history.findIndex(x=>x.time===rec.time);
+  if(sameDayIdx>=0) history[sameDayIdx]=rec;
+  else history.push(rec);
+  if(history.length>40) history = history.slice(-40);
+  localStorage.setItem('puHistory',JSON.stringify(history));
+  alert('✅ 保存成功！');
+  renderChart();
+}
+function renderChart(){
+  const ctx = document.getElementById('priceChart').getContext('2d');
+  const history = JSON.parse(localStorage.getItem('puHistory')||'[]');
+  const labels = history.map(i=>i.time);
+  const poData = history.map(i=>i.po);
+  const mdiData = history.map(i=>i.mdi);
+  const brentData = history.map(i=>i.brent);
+  if(chart) chart.destroy();
+  chart = new Chart(ctx,{
+    type:'line',
+    data:{
+      labels:labels,
+      datasets:[
+        {label:'PO',data:poData,borderColor:'#2b7cdd',fill:false,tension:0.2},
+        {label:'MDI',data:mdiData,borderColor:'#e67e22',fill:false,tension:0.2},
+        {label:'布伦特',data:brentData,borderColor:'#27ae60',fill:false,tension:0.2}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:false}}}
+  })
+}
+function clearHistory(){
+  if(confirm('确定清空全部历史？')){
+    localStorage.removeItem('puHistory');
+    renderChart();
+    alert('已清空');
+  }
+}
+async function fetchAllAuto(){
+  try{
+    const res = await fetch(WORKER_URL);
+    const data = await res.json();
+    setLastTime(data.time || new Date().toLocaleString());
+    if(data.brent) document.getElementById('brent').value = data.brent.toFixed(2);
+    if(data.wti) document.getElementById('wti').value = data.wti.toFixed(2);
+    if(data.usdcny) document.getElementById('usdcny').value = data.usdcny;
+    if(data.natgas) document.getElementById('ttf').value = data.natgas.toFixed(2);
+    if(data.gold) document.getElementById('gold').value = data.gold.toFixed(2);
+    if(data.lmeCu) document.getElementById('lmeCu').value = data.lmeCu.toFixed(2);
+  }catch(e){
+    setLastTime("抓取失败");
+  }
+}
+function toggleAutoTimer(){
+  const btn = document.getElementById('timerBtn');
+  if(autoTimer){
+    clearInterval(autoTimer);
+    autoTimer = null;
+    btn.innerText = "开启6分钟自动刷新";
+    btn.classList.remove('btn-warning');
+  }else{
+    fetchAllAuto();
+    autoTimer = setInterval(fetchAllAuto, AUTO_INTERVAL);
+    btn.innerText = "关闭6分钟自动刷新";
+    btn.classList.add('btn-warning');
+  }
+}
+window.onload = function(){
+  loadData();
+  setTimeout(renderChart,500);
+  fetchAllAuto();
+}
+</script>
+</body>
+</html>
